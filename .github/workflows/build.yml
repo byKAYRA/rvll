@@ -5,6 +5,12 @@ on:
     branches: [main, 'codex/pr-build-*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner image"
+        required: true
+        default: "macos-14"
+        type: string
 
 permissions:
   contents: read
@@ -19,7 +25,7 @@ concurrency:
 
 jobs:
   plan:
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     outputs:
       ipa: ${{ steps.key.outputs.ipa }}
       reuse: ${{ steps.ipa.outputs.cache-hit }}
@@ -46,13 +52,13 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ steps.key.outputs.ipa }}
-          path: dist/Madeira.ipa
+          path: dist/*.ipa
           lookup-only: true
 
   reuse:
     needs: plan
     if: needs.plan.outputs.reuse == 'true'
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     env:
       MADEIRA_PLANNED_SDK: ${{ needs.plan.outputs.sdk }}
       MADEIRA_RUNTIME_SDK: ${{ needs.plan.outputs.sdk }}
@@ -63,7 +69,7 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           key: ${{ needs.plan.outputs.ipa }}
-          path: dist/Madeira.ipa
+          path: dist/*.ipa
           fail-on-cache-miss: true
       - name: Validate cached IPA
         run: |
@@ -72,8 +78,8 @@ jobs:
           python3 tools/build/runtime-components.py ipa dist/Madeira.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: Madeira-ipa
-          path: dist/Madeira.ipa
+          name: Revival-Mobile-IPA
+          path: dist/*.ipa
           if-no-files-found: error
           overwrite: true
           compression-level: 0
@@ -81,7 +87,7 @@ jobs:
   llvm:
     needs: plan
     if: needs.plan.outputs.reuse != 'true'
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     env:
       MADEIRA_PLANNED_SDK: ${{ needs.plan.outputs.sdk }}
     timeout-minutes: 360
@@ -121,7 +127,7 @@ jobs:
   fex:
     needs: plan
     if: needs.plan.outputs.reuse != 'true'
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     env:
       MADEIRA_PLANNED_SDK: ${{ needs.plan.outputs.sdk }}
     timeout-minutes: 360
@@ -161,7 +167,7 @@ jobs:
   i386:
     needs: plan
     if: needs.plan.outputs.reuse != 'true'
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     env:
       MADEIRA_PLANNED_SDK: ${{ needs.plan.outputs.sdk }}
     timeout-minutes: 360
@@ -211,7 +217,7 @@ jobs:
   runtime:
     needs: [plan, llvm]
     if: needs.plan.outputs.reuse != 'true'
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -256,7 +262,7 @@ jobs:
   app:
     needs: [plan, llvm, fex, i386, runtime]
     if: needs.plan.outputs.reuse != 'true'
-    runs-on: xcode-27
+    runs-on: ${{ inputs.runner || 'macos-14' }}
     env:
       MADEIRA_PLANNED_SDK: ${{ needs.plan.outputs.sdk }}
       MADEIRA_PLANNED_IPA: ${{ needs.plan.outputs.ipaenv }}
@@ -396,11 +402,11 @@ jobs:
       - uses: actions/cache/save@v4
         with:
           key: ${{ needs.plan.outputs.ipa }}
-          path: dist/Madeira.ipa
+          path: dist/*.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: Madeira-ipa
-          path: dist/Madeira.ipa
+          name: Revival-Mobile-IPA
+          path: dist/*.ipa
           if-no-files-found: error
           overwrite: true
           compression-level: 0

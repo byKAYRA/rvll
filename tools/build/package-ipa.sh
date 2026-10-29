@@ -75,5 +75,6 @@ rm -f "$DIST/Madeira.ipa"
 )
 rm -rf "$DIST/Payload"
 [[ -s "$DIST/Madeira.ipa" ]] || { echo "ERROR: failed to create IPA" >&2; exit 1; }
+cp -f "$DIST/Madeira.ipa" "$DIST/Revival.ipa"
 unzip -tq "$DIST/Madeira.ipa" >/dev/null
 python3 "$ROOT/tools/build/runtime-components.py" ipa "$DIST/Madeira.ipa"

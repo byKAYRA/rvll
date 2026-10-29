@@ -1780,6 +1780,16 @@ static void *wine_process_thread(void *arg) {
                     setenv("DXMT_IOS_CACHE_DIR", "1", 0);
                     fprintf(stderr, "[madeira-env] DXMT_IOS_CACHE_DIR=1 (default: shader caches under Library/Caches)\n");
                 }
+
+                // Revival / Qt 6 DXGI swapchain compatibility:
+                // DXMT implements DXGI_SWAP_EFFECT_DISCARD (0), but not DXGI_SWAP_EFFECT_FLIP_DISCARD (4).
+                // Setting QT_D3D_NO_FLIP=1 and QT_D3D_FLIP_DISCARD=0 prevents 0x80004001 E_NOTIMPL white screen.
+                if (!getenv("QT_D3D_NO_FLIP")) {
+                    setenv("QT_D3D_NO_FLIP", "1", 0);
+                }
+                if (!getenv("QT_D3D_FLIP_DISCARD")) {
+                    setenv("QT_D3D_FLIP_DISCARD", "0", 0);
+                }
             }
         }
 

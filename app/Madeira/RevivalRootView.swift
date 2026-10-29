@@ -148,6 +148,8 @@ struct RevivalRootView: View {
         setenv("SSL_CERT_FILE", "C:\\cacert.pem", 1)
         setenv("d3d9", "native", 1)
         setenv("DXMT_CLEAR_DISCARD_STORE", "0", 1)
+        setenv("QT_D3D_NO_FLIP", "1", 1)
+        setenv("QT_D3D_FLIP_DISCARD", "0", 1)
 
         statusMessage = "Oyun motoru başlatılıyor..."
 
