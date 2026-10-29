@@ -22,6 +22,18 @@ if [[ "${GITHUB_ACTIONS:-}" == true && -s "$REPO_ROOT/app/Madeira/libmadeira_rpp
 fi
 
 cd "$BUILD_DIR"
+
+if ! command -v rustup >/dev/null 2>&1; then
+    if [[ -f "$HOME/.cargo/env" ]]; then
+        source "$HOME/.cargo/env"
+    fi
+fi
+if ! command -v rustup >/dev/null 2>&1; then
+    echo "Installing rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+fi
+
 rustup target add "$TARGET"
 cargo build --release --locked --target "$TARGET"
 cp "target/$TARGET/release/libmadeira_rppairing.a" "$REPO_ROOT/app/Madeira/libmadeira_rppairing.a"

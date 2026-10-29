@@ -18,6 +18,17 @@ log "Installing build dependencies"
 brew install cmake ninja meson pkg-config autoconf automake libtool bison flex sevenzip llvm
 export PATH="$(brew --prefix bison)/bin:$(brew --prefix llvm)/bin:$PATH"
 
+if ! command -v rustup >/dev/null 2>&1; then
+    if [[ -f "$HOME/.cargo/env" ]]; then
+        source "$HOME/.cargo/env"
+    else
+        echo "Setting up rustup..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+    fi
+fi
+rustup target add aarch64-apple-ios || true
+
 log "Checking out submodules"
 git -C "$ROOT" submodule update --init --recursive
 
@@ -60,4 +71,4 @@ if [[ "${GITHUB_ACTIONS:-}" != true ]]; then
 fi
 "$ROOT/tools/build/package-ipa.sh"
 
-printf '\n\033[1;32mDone: %s/dist/Madeira.ipa\033[0m\n' "$ROOT"
+printf '\n\033[1;32mDone: %s/dist/Madeira.ipa (and Revival.ipa)\033[0m\n' "$ROOT"
