@@ -1,0 +1,66 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-10-29T12:46:15.033287+00:00",
+  "files": [
+    {
+      "target_path": "madeira.cfg",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/madeira.cfg",
+      "sha256": "1c06f43c70f42f4001164964645bdc981f0bd16a90762b422fc48737ebb1c74a",
+      "size": 401
+    },
+    {
+      "target_path": "Revival/cacert.pem",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/cacert.pem",
+      "sha256": "86a1f3366afac7c6f8ae9f3c779ac221129328c43f0ab2b8817eb2f362a5025c",
+      "size": 189462
+    },
+    {
+      "target_path": "Revival/icu.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/icu.dll",
+      "sha256": "666399323e3b85af0148ee626af32ba54f2ea130b3c142c9925789819c30f389",
+      "size": 2774088
+    },
+    {
+      "target_path": "Revival/icuin.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/icuin.dll",
+      "sha256": "585026af25fe25b330de89c5b7376ec8ac504980f4393b98236fbdb302e3215b",
+      "size": 32768
+    },
+    {
+      "target_path": "Revival/icuuc.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/icuuc.dll",
+      "sha256": "59d134ddc15ae0594f0a328979f8201662fc82634ddb7c537b156e7cf871f5eb",
+      "size": 36864
+    },
+    {
+      "target_path": "Revival/ncrypt.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/ncrypt.dll",
+      "sha256": "898e9a0efd62e20e419f460ed542ccfdd84627820eb97055c92341fc57dc4a5a",
+      "size": 241152
+    },
+    {
+      "target_path": "Revival/qt.conf",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/qt.conf",
+      "sha256": "289362db0f2d7b1780eb843b30272ddc1d889e4da3292804062f308cb8eabf0f",
+      "size": 19
+    },
+    {
+      "target_path": "Revival/Game/BinaryTr/dinput8.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/Game/BinaryTr/dinput8.dll",
+      "sha256": "0e220e2998133a89856c97aaf0ef10d30b4b9c9720bf7e1c41745fda6065e119",
+      "size": 171008
+    },
+    {
+      "target_path": "Revival/Game/BinaryTr/ncrypt.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/Game/BinaryTr/ncrypt.dll",
+      "sha256": "54d3546bf35043c0c550b0aa969bc2bf529d2711c6dafb4db4622ce7a9b53428",
+      "size": 201216
+    },
+    {
+      "target_path": "Revival/Game/BinaryTr/winspool.drv",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/Game/BinaryTr/winspool.drv",
+      "sha256": "df59271467eb40ff9b66f488942594d7cf2fa776107221c7a2424cf5d70c6251",
+      "size": 84480
+    }
+  ]
+}

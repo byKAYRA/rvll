@@ -6,10 +6,14 @@ import UIKit
 // Eski Steam/Madeira kütüphanesi yerine doğrudan Revival oyununa özel tasarlanmış görünüm.
 struct RevivalRootView: View {
     @ObservedObject private var touchModel = TouchControlsModel.shared
+    @ObservedObject private var syncEngine = RevivalSyncEngine.shared
+
     @State private var isGameRunning = false
-    @State private var statusMessage = "Revival başlatılıyor..."
+    @State private var statusMessage = "Revival hazırlanıyor..."
     @State private var showControls = true
     @State private var wineStarted = false
+    @State private var isUploadingLogs = false
+    @State private var toastMessage: String? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -59,14 +63,25 @@ struct RevivalRootView: View {
                             Spacer()
 
                             // Durum / İlerleme Göstergesi
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                                    .scaleEffect(1.3)
+                            VStack(spacing: 14) {
+                                if syncEngine.isSyncing {
+                                    ProgressView(value: max(0.05, syncEngine.progressFraction))
+                                        .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                                        .frame(width: 260)
+                                        .scaleEffect(x: 1, y: 2, anchor: .center)
 
-                                Text(statusMessage)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.85))
+                                    Text(syncEngine.progressText)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.9))
+                                } else {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                                        .scaleEffect(1.3)
+
+                                    Text(statusMessage)
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                }
                             }
                             .padding(.bottom, 40)
                         }
@@ -74,9 +89,10 @@ struct RevivalRootView: View {
                     .transition(.opacity)
                 }
 
-                // 5. Minimalist Üst Kontrol Barı (Oyun açıkken gizlenebilir)
+                // 5. Minimalist Üst Kontrol Barı (Oyun açıkken de kullanılabilir)
                 VStack {
-                    HStack {
+                    HStack(spacing: 12) {
+                        // Kontrolleri Aç/Kapat
                         Button {
                             showControls.toggle()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -89,6 +105,7 @@ struct RevivalRootView: View {
                                 .clipShape(Circle())
                         }
 
+                        // Sanal Klavye Aç/Kapat
                         Button {
                             MetalBackedView.toggleKeyboard()
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -101,11 +118,39 @@ struct RevivalRootView: View {
                                 .clipShape(Circle())
                         }
 
+                        // Teşhis / Log Gönder Butonu (GitHub Gist)
+                        Button {
+                            isUploadingLogs = true
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            RevivalLogTelemetry.shared.uploadLogs(triggerReason: "user-button") { success, msg in
+                                isUploadingLogs = false
+                                withAnimation {
+                                    toastMessage = msg
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                    withAnimation {
+                                        toastMessage = nil
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: isUploadingLogs ? "arrow.triangle.2.circlepath" : "ladybug")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(isUploadingLogs ? .yellow : .white.opacity(0.9))
+                                .padding(10)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+
                         Spacer()
 
                         // Çıkış / Kapat
                         Button {
-                            exit(0)
+                            // Çıkışta logları sessizce ilet
+                            RevivalLogTelemetry.shared.uploadLogs(triggerReason: "exit-button")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                exit(0)
+                            }
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 14, weight: .bold))
@@ -117,6 +162,18 @@ struct RevivalRootView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
+
+                    // Toast / Bildirim
+                    if let toast = toastMessage {
+                        Text(toast)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.8))
+                            .clipShape(Capsule())
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                     Spacer()
                 }
@@ -131,8 +188,6 @@ struct RevivalRootView: View {
         guard !wineStarted else { return }
         wineStarted = true
 
-        statusMessage = "Kontroller ve yapılandırma hazırlanıyor..."
-        
         // Goley Futbol Kontrollerini Varsayılan Olarak Yükle
         let screen = ControlPresetScreen(
             width: geo.size.width,
@@ -143,6 +198,7 @@ struct RevivalRootView: View {
 
         // Çevre Değişkenleri
         setenv("MADEIRA_EXE", "C:\\Revival\\revival_launcher.exe", 1)
+        setenv("MADEIRA_WAIT_CHILDREN", "1", 1) // Launcher BinaryTrU.exe'yi başlattığında oturumu açık tut
         setenv("WINEDLLOVERRIDES", "winspool.drv=n,b;winspool=n,b;dinput8=n,b", 1)
         setenv("MADEIRA_CA_BUNDLE", "C:\\cacert.pem", 1)
         setenv("SSL_CERT_FILE", "C:\\cacert.pem", 1)
@@ -151,23 +207,29 @@ struct RevivalRootView: View {
         setenv("QT_D3D_NO_FLIP", "1", 1)
         setenv("QT_D3D_FLIP_DISCARD", "0", 1)
 
-        statusMessage = "Oyun motoru başlatılıyor..."
+        Task {
+            // 1. GitHub Üzerinden Güncellemeleri Denetle
+            statusMessage = "Güncellemeler denetleniyor..."
+            await syncEngine.synchronize()
 
-        // Wine Server ve Süreç Başlatma
-        DispatchQueue.global(qos: .userInteractive).async {
-            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let prefix = docs.appendingPathComponent("wine").path
+            statusMessage = "Oyun motoru başlatılıyor..."
 
-            // Prefix'i hazırla ve seed et
-            madeira_seed_prefix_if_needed(prefix)
+            // 2. Wine Server ve Süreç Başlatma
+            DispatchQueue.global(qos: .userInteractive).async {
+                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let prefix = docs.appendingPathComponent("wine").path
 
-            // Wine başlat
-            _ = wine_process_start(prefix)
+                // Prefix'i hazırla ve seed et
+                madeira_seed_prefix_if_needed(prefix)
 
-            // Oyun penceresinin hazır olduğunu kontrol et
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                withAnimation(.easeOut(duration: 0.5)) {
-                    self.isGameRunning = true
+                // Wine başlat
+                _ = wine_process_start(prefix)
+
+                // Oyun penceresinin hazır olduğunu kontrol et
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    withAnimation(.easeOut(duration: 0.5)) {
+                        self.isGameRunning = true
+                    }
                 }
             }
         }
