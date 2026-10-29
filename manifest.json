@@ -1,12 +1,12 @@
 {
   "version": "1.0.0",
-  "updated_at": "2026-10-29T12:46:15.033287+00:00",
+  "updated_at": "2026-10-29T13:05:33.808049+00:00",
   "files": [
     {
       "target_path": "madeira.cfg",
       "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/madeira.cfg",
-      "sha256": "1c06f43c70f42f4001164964645bdc981f0bd16a90762b422fc48737ebb1c74a",
-      "size": 401
+      "sha256": "80e5d7696aeed19b3f6d7bf21ae15e26609ec782e152928de4404af5ce78e654",
+      "size": 460
     },
     {
       "target_path": "Revival/cacert.pem",
