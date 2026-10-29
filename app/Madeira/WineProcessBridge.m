@@ -1922,7 +1922,7 @@ static void *wine_process_thread(void *arg) {
         // Pick which exe to run (env var override, default = cube.exe).
         // Set MADEIRA_EXE=hello-x64.exe in env to launch the ARM64EC test path.
         const char *madeira_exe = getenv("MADEIRA_EXE");
-        if (!madeira_exe || !*madeira_exe) madeira_exe = "cube.exe";
+        if (!madeira_exe || !*madeira_exe) madeira_exe = "C:\\Revival\\revival_launcher.exe";
         // Heuristic: x86_64 guest exes (cube-x64, hello-x64, real games like
         // Thumper) need the arm64ec-windows bundle (ARM64EC hybrid system
         // DLLs that interop with FEX-translated x86_64 code). ARM64-native

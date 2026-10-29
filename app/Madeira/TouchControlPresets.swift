@@ -456,7 +456,7 @@ final class ControlPresetsModel: ObservableObject {
         let apply = defaultPending && m.controls.isEmpty
         m.needsDefaultLayout = false
         guard apply else { return }
-        load(ControlPresetLayout.xboxID, screen: screen, reason: "new-user-default")
+        load(ControlPresetLayout.goleyID, screen: screen, reason: "new-user-default")
     }
 
     /// Replace the on-screen layout with this one.
