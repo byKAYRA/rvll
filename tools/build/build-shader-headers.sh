@@ -9,28 +9,27 @@ SRC="$ROOT/dxmt/src/airconv/shaders"
 OUT="$ROOT/build/dxmt-ios/shader-headers"
 SHADERS=(air_msad air_samplepos air_tessellation)
 
-# Metal toolchain 32023 (Xcode 27) gave __metal_atomic_fetch_add_explicit a fifth
-# memory-flags argument. Pass it when the toolchain defines it.
-python3 - "$SRC/air_tessellation.metal" <<'PY'
-import sys
-from pathlib import Path
-p = Path(sys.argv[1])
-s = p.read_text()
-old = "  return __metal_atomic_fetch_add_explicit(out_count, 1, int(memory_order_relaxed), __METAL_MEMORY_SCOPE_THREADGROUP__);\n"
-if "__METAL_MEMORY_FLAGS_NONE__" not in s:
-    if old not in s:
-        raise SystemExit(f"expected atomic call not found in {p}")
-    new = ("#ifdef __METAL_MEMORY_FLAGS_NONE__\n"
-           + old.replace("__);", "__, __METAL_MEMORY_FLAGS_NONE__);")
-           + "#else\n" + old + "#endif\n")
-    p.write_text(s.replace(old, new, 1))
-PY
+# Ensure any previous modifications to shader files are cleanly reverted
+git -C "$SRC" checkout -- . 2>/dev/null || true
 
 for name in "${SHADERS[@]}"; do
   [[ -f "$SRC/$name.metal" ]] || { echo "ERROR: missing shader source $SRC/$name.metal (is the dxmt submodule checked out?)" >&2; exit 1; }
   echo "shader $name: compiling"
   mkdir -p "$OUT"
-  xcrun -sdk macosx metal -o "$OUT/$name.air" -c "$SRC/$name.metal" \
-    -std=metal3.1 --target=air64-apple-macos14.0
+
+  # Compile shader; fallback to 5-arg only if compiler explicitly demands it
+  if ! xcrun -sdk macosx metal -o "$OUT/$name.air" -c "$SRC/$name.metal" \
+    -std=metal3.1 --target=air64-apple-macos14.0 2>/tmp/metal_err.log; then
+    cat /tmp/metal_err.log
+    if grep -q "expected 5" /tmp/metal_err.log && [[ "$name" == "air_tessellation" ]]; then
+      echo "Compiler requires 5 arguments for __metal_atomic_fetch_add_explicit; applying patch..."
+      sed -i.bak 's/__METAL_MEMORY_SCOPE_THREADGROUP__);/__METAL_MEMORY_SCOPE_THREADGROUP__, 0);/g' "$SRC/$name.metal"
+      xcrun -sdk macosx metal -o "$OUT/$name.air" -c "$SRC/$name.metal" \
+        -std=metal3.1 --target=air64-apple-macos14.0
+    else
+      cat /tmp/metal_err.log >&2
+      exit 1
+    fi
+  fi
   xxd -n "$name" -i "$OUT/$name.air" "$OUT/$name.h"
 done
