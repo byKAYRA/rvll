@@ -226,3 +226,6 @@ __pycache__/
 
 # Verified runtime component caches
 .runtime-cache/
+
+# Local log downloads
+logs/

@@ -2,60 +2,140 @@ import Foundation
 import UIKit
 
 // MARK: - RevivalLogTelemetry
-/// Hata ve teşhis loglarını toplayıp GitHub Gist veya webhook'a otomatik ileten servis.
+/// Hata ve teşhis loglarını toplayıp anonim buluta (filebin.net) yükleyen ve iOS paylaşım sayfası sağlayan servis.
 final class RevivalLogTelemetry {
     static let shared = RevivalLogTelemetry()
 
     private init() {}
 
+    let binId = "revival-logs-kayra"
+    private let baseURL = "https://filebin.net"
+
     private var documentsDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    /// Logları toplayıp uzaktaki merkeze yükler
+    /// Logları toplayıp anonim buluta (filebin.net) yükler
     func uploadLogs(triggerReason: String = "manual", completion: ((Bool, String) -> Void)? = nil) {
         Task {
-            let logPayload = self.gatherDiagnostics(triggerReason: triggerReason)
-            let success = await self.sendToGitHubGist(payload: logPayload)
+            let files = self.gatherDiagnostics(triggerReason: triggerReason)
+            let (success, message) = await self.uploadToFilebin(files: files)
             DispatchQueue.main.async {
-                if success {
-                    completion?(true, "Loglar GitHub Gist'e başarıyla yüklendi.")
-                } else {
-                    completion?(false, "Log yüklemesi tamamlanamadı.")
-                }
+                completion?(success, message)
             }
         }
     }
 
-    /// Tüm log dosyalarını ve cihaz durumunu birleştirir
+    /// Dosyaları filebin.net üzerine yükler
+    private func uploadToFilebin(files: [String: String]) async -> (Bool, String) {
+        guard !files.isEmpty else {
+            return (false, "Yüklenecek log dosyası bulunamadı.")
+        }
+
+        var uploadedCount = 0
+        var lastError = ""
+
+        for (filename, content) in files {
+            guard let fileURL = URL(string: "\(baseURL)/\(binId)/\(filename)") else { continue }
+
+            var request = URLRequest(url: fileURL)
+            request.httpMethod = "POST"
+            request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
+            request.setValue("RevivalMobile-iOS", forHTTPHeaderField: "User-Agent")
+            request.httpBody = content.data(using: .utf8)
+            request.timeoutInterval = 15.0
+
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                    uploadedCount += 1
+                } else {
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    lastError = "HTTP \(code)"
+                }
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+
+        if uploadedCount > 0 {
+            return (true, "Loglar buluta yüklendi (\(uploadedCount) dosya): filebin.net/\(binId)")
+        } else {
+            return (false, "Log yükleme başarısız oldu: \(lastError)")
+        }
+    }
+
+    /// Tüm logları tek bir metin dosyasında birleştirir ve dosya URL'si döndürür (Paylaşım / AirDrop için)
+    func exportCombinedDiagnostics(triggerReason: String = "export") -> URL? {
+        let files = gatherDiagnostics(triggerReason: triggerReason)
+        var combined = "========================================================\n"
+        combined += "  REVIVAL MOBILE TEŞHİS RAPORU\n"
+        combined += "  Tarih: \(ISO8601DateFormatter().string(from: Date()))\n"
+        combined += "  Filebin: \(baseURL)/\(binId)\n"
+        combined += "========================================================\n\n"
+
+        for (filename, content) in files.sorted(by: { $0.key < $1.key }) {
+            combined += "--------------------------------------------------------\n"
+            combined += "  DOSYA: \(filename)\n"
+            combined += "--------------------------------------------------------\n"
+            combined += content + "\n\n"
+        }
+
+        let exportURL = documentsDirectory.appendingPathComponent("revival_diagnostic_report.txt")
+        do {
+            try combined.write(to: exportURL, atomically: true, encoding: .utf8)
+            return exportURL
+        } catch {
+            print("[RevivalLog] Rapor kaydedilemedi: \(error)")
+            return nil
+        }
+    }
+
+    /// Cihaz durumu, log dosyaları ve dizin haritasını toplar
     func gatherDiagnostics(triggerReason: String) -> [String: String] {
         var files: [String: String] = [:]
 
-        // 1. Cihaz ve Oturum Özeti
+        // 1. Sistem ve Çevre Özeti
         let device = UIDevice.current
-        let systemInfo = """
+        var systemInfo = """
         Revival Mobile Teşhis Raporu
         Tarih: \(ISO8601DateFormatter().string(from: Date()))
         Tetikleyici: \(triggerReason)
-        Cihaz Modeli: \(device.model)
+        Cihaz: \(device.model)
         Sistem: \(device.systemName) \(device.systemVersion)
+        JIT Durumu: ready=\(StikJITHelper.ready ? "EVET" : "HAYIR"), attached=\(isDebuggerAttached() ? "EVET" : "HAYIR"), builtin=\(MadeiraBuiltInJIT.isAvailable ? "VAR" : "YOK")
+        Wineserver Durumu: running=\(wineserver_is_running() != 0 ? "EVET" : "HAYIR"), ready=\(wineserver_is_ready() != 0 ? "EVET" : "HAYIR")
+        Wine Process: running=\(wine_process_is_running() != 0 ? "EVET" : "HAYIR")
         """
+
+        // Dizin listesini ekle
+        let winePrefixURL = documentsDirectory.appendingPathComponent("wine")
+        systemInfo += "\n\n--- Wine Prefix İçeriği ---\n"
+        systemInfo += listDirectory(at: winePrefixURL, depth: 2)
+
+        let revivalGameURL = winePrefixURL.appendingPathComponent("drive_c/Revival")
+        systemInfo += "\n\n--- C:\\Revival İçeriği ---\n"
+        systemInfo += listDirectory(at: revivalGameURL, depth: 1)
+
         files["00_system_info.txt"] = systemInfo
 
         // 2. Madeira Motor Logu (madeira-log.txt)
         let madeiraLogURL = documentsDirectory.appendingPathComponent("madeira-log.txt")
-        if let content = readLastLines(of: madeiraLogURL, maxLines: 1500) {
+        if let content = readLastLines(of: madeiraLogURL, maxLines: 2000) {
             files["madeira-log.txt"] = content
         }
 
         // 3. Revival Launcher Logu (launcher.log)
-        let launcherLogURL = documentsDirectory.appendingPathComponent("wine/drive_c/users/mobile/AppData/Roaming/Revival/logs/launcher.log")
-        if let content = readLastLines(of: launcherLogURL, maxLines: 1000) {
+        let primaryLauncherLog = winePrefixURL.appendingPathComponent("drive_c/users/mobile/AppData/Roaming/Revival/logs/launcher.log")
+        let fallbackLauncherLog = revivalGameURL.appendingPathComponent("launcher.log")
+        if let content = readLastLines(of: primaryLauncherLog, maxLines: 1500) {
+            files["launcher.log"] = content
+        } else if let content = readLastLines(of: fallbackLauncherLog, maxLines: 1500) {
             files["launcher.log"] = content
         }
 
-        // 4. Ncrypt Shim Logu (ncrypt-shim.log - varsa)
-        let shimLogURL = documentsDirectory.appendingPathComponent("wine/drive_c/users/mobile/AppData/Roaming/Revival/logs/ncrypt-shim.log")
+        // 4. Ncrypt Shim Logu (ncrypt-shim.log)
+        let shimLogURL = winePrefixURL.appendingPathComponent("drive_c/users/mobile/AppData/Roaming/Revival/logs/ncrypt-shim.log")
         if let content = readLastLines(of: shimLogURL, maxLines: 500) {
             files["ncrypt-shim.log"] = content
         }
@@ -63,64 +143,43 @@ final class RevivalLogTelemetry {
         return files
     }
 
-    /// Logları GitHub Gist API'sine JSON olarak gönderir
-    private func sendToGitHubGist(payload: [String: String]) async -> Bool {
-        guard let apiURL = URL(string: "https://api.github.com/gists") else { return false }
+    private func listDirectory(at url: URL, depth: Int) -> String {
+        guard FileManager.default.fileExists(atPath: url.path) else { return "\(url.lastPathComponent) (Mevcut değil)\n" }
+        guard depth >= 0 else { return "" }
 
-        var gistFiles: [String: [String: String]] = [:]
-        for (filename, text) in payload {
-            gistFiles[filename] = ["content": text]
-        }
-
-        let bodyDict: [String: Any] = [
-            "description": "Revival Mobile iOS Otomatik Teşhis Logu (\(Date().description))",
-            "public": false,
-            "files": gistFiles
-        ]
-
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: bodyDict, options: []) else {
-            return false
-        }
-
-        var request = URLRequest(url: apiURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("RevivalMobile-iOS", forHTTPHeaderField: "User-Agent")
-        request.httpBody = bodyData
-        request.timeoutInterval = 10.0
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let htmlUrl = json["html_url"] as? String {
-                    print("[RevivalLog] Loglar GitHub Gist'e yüklendi: \(htmlUrl)")
+        var result = ""
+        if let items = try? FileManager.default.contentsOfDirectory(atPath: url.path) {
+            for item in items.prefix(30) {
+                let subURL = url.appendingPathComponent(item)
+                var isDir: ObjCBool = false
+                FileManager.default.fileExists(atPath: subURL.path, isDirectory: &isDir)
+                if isDir.boolValue {
+                    result += "[DIR]  \(item)/\n"
+                    if depth > 0 {
+                        let subListing = listDirectory(at: subURL, depth: depth - 1)
+                        for line in subListing.components(separatedBy: .newlines) where !line.isEmpty {
+                            result += "       \(line)\n"
+                        }
+                    }
+                } else {
+                    let attrs = try? FileManager.default.attributesOfItem(atPath: subURL.path)
+                    let size = (attrs?[.size] as? Int64) ?? 0
+                    result += "[FILE] \(item) (\(size) bytes)\n"
                 }
-                return true
-            } else {
-                print("[RevivalLog] Gist API yanıt kodu: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
-                return false
             }
-        } catch {
-            print("[RevivalLog] Gist yükleme hatası: \(error.localizedDescription)")
-            return false
         }
+        return result.isEmpty ? "(Boş dizin)\n" : result
     }
 
-    /// Büyük log dosyalarının sadece son N satırını okur (bellek koruması)
     private func readLastLines(of url: URL, maxLines: Int) -> String? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
-            // Latin1 fallback
-            guard let latin = try? String(contentsOf: url, encoding: .isoLatin1) else { return nil }
-            return latin
+        guard let text = try? String(contentsOf: url, encoding: .utf8) ?? String(contentsOf: url, encoding: .isoLatin1) else {
+            return nil
         }
-
         let lines = text.components(separatedBy: .newlines)
         if lines.count <= maxLines {
             return text
         }
-        let tail = lines.suffix(maxLines)
-        return tail.joined(separator: "\n")
+        return lines.suffix(maxLines).joined(separator: "\n")
     }
 }
