@@ -3,6 +3,7 @@ import UIKit
 
 // MARK: - RevivalLogTelemetry
 /// Hata ve teşhis loglarını toplayıp doğrudan Discord kanalına gönderen ve iOS paylaşım sayfası sağlayan telemetri servisi.
+@MainActor
 final class RevivalLogTelemetry {
     static let shared = RevivalLogTelemetry()
 
@@ -27,28 +28,31 @@ final class RevivalLogTelemetry {
     }
 
     // MARK: - Discord Üzerinden Log Gönderme
-    /// Uygulama klasörlerindeki TÜM log dosyalarını Discord kanalına zengin embed ve ekler (attachments) olarak gönderir.
+    /// uploadLogs ve uploadToDiscord aynı işlemi gerçekleştirir
     func uploadLogs(triggerReason: String = "manual", completion: ((Bool, String) -> Void)? = nil) {
+        uploadToDiscord(triggerReason: triggerReason, completion: completion)
+    }
+
+    /// Uygulama klasörlerindeki TÜM log dosyalarını Discord kanalına sade monospace format ve ekler (attachments) olarak gönderir.
+    func uploadToDiscord(triggerReason: String = "manual", completion: ((Bool, String) -> Void)? = nil) {
         guard let targetURL = URL(string: self.discordWebhookURL) else {
             completion?(false, "Geçersiz Discord Webhook URL'si.")
             return
         }
 
-        Task {
-            let logFiles = self.gatherAllLogFiles(triggerReason: triggerReason)
-            guard !logFiles.isEmpty else {
-                DispatchQueue.main.async { completion?(false, "Gönderilecek log dosyası bulunamadı.") }
-                return
-            }
+        let logFiles = self.gatherAllLogFiles(triggerReason: triggerReason)
+        guard !logFiles.isEmpty else {
+            completion?(false, "Gönderilecek log dosyası bulunamadı.")
+            return
+        }
 
+        Task {
             let (success, message) = await self.sendMultipartToDiscord(url: targetURL, files: logFiles, triggerReason: triggerReason)
-            DispatchQueue.main.async {
-                completion?(success, message)
-            }
+            completion?(success, message)
         }
     }
 
-    /// Discord Webhook API'sine multipart/form-data ile çoklu dosya ve embed gönderir
+    /// Discord Webhook API'sine multipart/form-data ile çoklu dosya ve özet gönderir
     private func sendMultipartToDiscord(url: URL, files: [String: String], triggerReason: String) async -> (Bool, String) {
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: url)
@@ -230,13 +234,16 @@ final class RevivalLogTelemetry {
 
     private func readLastLines(of url: URL, maxLines: Int) -> String? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-        guard let text = try? String(contentsOf: url, encoding: .utf8) ?? String(contentsOf: url, encoding: .isoLatin1) else {
-            return nil
+        if let text = try? String(contentsOf: url, encoding: .utf8) {
+            let lines = text.components(separatedBy: .newlines)
+            if lines.count <= maxLines { return text }
+            return lines.suffix(maxLines).joined(separator: "\n")
         }
-        let lines = text.components(separatedBy: .newlines)
-        if lines.count <= maxLines {
-            return text
+        if let latin = try? String(contentsOf: url, encoding: .isoLatin1) {
+            let lines = latin.components(separatedBy: .newlines)
+            if lines.count <= maxLines { return latin }
+            return lines.suffix(maxLines).joined(separator: "\n")
         }
-        return lines.suffix(maxLines).joined(separator: "\n")
+        return nil
     }
 }
