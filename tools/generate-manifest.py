@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Revival Mobile manifest.json Generator
-Scans client/ directory and madeira.cfg, computes SHA-256 hashes and file sizes,
-and outputs a ready-to-use manifest.json for RevivalSyncEngine.
+Scans client/ directory, drive_c/ (if present), and configuration files.
+Computes SHA-256 hashes and file sizes, and outputs a ready-to-use manifest.json for RevivalSyncEngine.
 """
 import os
 import json
@@ -21,8 +21,9 @@ def sha256_file(filepath):
 
 def main():
     manifest_items = []
+    seen_targets = set()
 
-    # 1. madeira.cfg
+    # 1. madeira.cfg (Documents/)
     cfg_path = os.path.join(REPO_ROOT, "madeira.cfg")
     if os.path.isfile(cfg_path):
         manifest_items.append({
@@ -31,8 +32,9 @@ def main():
             "sha256": sha256_file(cfg_path),
             "size": os.path.getsize(cfg_path)
         })
+        seen_targets.add("madeira.cfg")
 
-    # 2. client/ directory
+    # 2. client/ directory -> C:\Revival\...
     client_dir = os.path.join(REPO_ROOT, "client")
     if os.path.isdir(client_dir):
         for root, dirs, files in os.walk(client_dir):
@@ -48,9 +50,28 @@ def main():
                     "sha256": sha256_file(abs_path),
                     "size": os.path.getsize(abs_path)
                 })
+                seen_targets.add(target_path)
+
+    # 3. drive_c/ directory (if present in repo) -> C:\...
+    drive_c_dir = os.path.join(REPO_ROOT, "drive_c")
+    if os.path.isdir(drive_c_dir):
+        for root, dirs, files in os.walk(drive_c_dir):
+            for file in sorted(files):
+                abs_path = os.path.join(root, file)
+                rel_path = os.path.relpath(abs_path, drive_c_dir).replace("\\", "/")
+                target_path = rel_path
+                if target_path not in seen_targets:
+                    raw_url = f"{BASE_RAW_URL}/drive_c/{rel_path}"
+                    manifest_items.append({
+                        "target_path": target_path,
+                        "url": raw_url,
+                        "sha256": sha256_file(abs_path),
+                        "size": os.path.getsize(abs_path)
+                    })
+                    seen_targets.add(target_path)
 
     manifest = {
-        "version": "1.0.0",
+        "version": "1.0.1",
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "files": manifest_items
     }
@@ -59,7 +80,7 @@ def main():
     with open(manifest_output_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
-    print(f"Generated manifest.json with {len(manifest_items)} items at {manifest_output_path}")
+    print(f"[OK] Generated manifest.json with {len(manifest_items)} items at {manifest_output_path}")
 
 if __name__ == "__main__":
     main()
