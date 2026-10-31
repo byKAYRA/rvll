@@ -2,19 +2,20 @@ import Foundation
 import UIKit
 
 // MARK: - RevivalLogTelemetry
-/// Hata ve teşhis loglarını toplayıp Discord Webhook / Filebin bulutuna yükleyen ve iOS paylaşım sayfası sağlayan servis.
+/// Hata ve teşhis loglarını toplayıp doğrudan Discord kanalına gönderen ve iOS paylaşım sayfası sağlayan telemetri servisi.
 final class RevivalLogTelemetry {
     static let shared = RevivalLogTelemetry()
 
     private init() {}
 
-    let binId = "revival-logs-kayra"
-    private let baseURL = "https://filebin.net"
+    /// Varsayılan Discord Webhook URL'si
+    let defaultDiscordWebhookURL = "https://discord.com/api/webhooks/1566121518344306779/n7Tvh_z_WlnPEo_oweLEg-o4ITZkgmCyeC4kJA9F7WxbknJ9snt2zEXx2ZKmccjOVdtm"
 
-    /// Discord Webhook URL (UserDefaults ile saklanır, ayarlanabilir)
+    /// Discord Webhook URL (Varsayılan olarak tanımlıdır, istenirse ayarlanabilir)
     var discordWebhookURL: String {
         get {
-            UserDefaults.standard.string(forKey: "revivalDiscordWebhookURL") ?? ""
+            let saved = UserDefaults.standard.string(forKey: "revivalDiscordWebhookURL") ?? ""
+            return saved.isEmpty ? defaultDiscordWebhookURL : saved
         }
         set {
             UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "revivalDiscordWebhookURL")
@@ -25,12 +26,11 @@ final class RevivalLogTelemetry {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
-    // MARK: - Discord Webhook Üzerinden Log Gönderme
+    // MARK: - Discord Üzerinden Log Gönderme
     /// Uygulama klasörlerindeki TÜM log dosyalarını Discord kanalına zengin embed ve ekler (attachments) olarak gönderir.
-    func uploadToDiscord(webhookURLOverride: String? = nil, triggerReason: String = "manual", completion: ((Bool, String) -> Void)? = nil) {
-        let targetURLString = webhookURLOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? self.discordWebhookURL
-        guard !targetURLString.isEmpty, let targetURL = URL(string: targetURLString) else {
-            completion?(false, "Discord Webhook URL girilmemiş. Lütfen geçerli bir webhook URL'si ayarlayın.")
+    func uploadLogs(triggerReason: String = "manual", completion: ((Bool, String) -> Void)? = nil) {
+        guard let targetURL = URL(string: self.discordWebhookURL) else {
+            completion?(false, "Geçersiz Discord Webhook URL'si.")
             return
         }
 
@@ -60,7 +60,7 @@ final class RevivalLogTelemetry {
         let device = UIDevice.current
         let dateStr = ISO8601DateFormatter().string(from: Date())
 
-        // Discord Embed JSON Hazırlığı
+        // Discord Embed Alanları
         let embedFields: [[String: Any]] = [
             ["name": "📱 Cihaz", "value": "\(device.model) (\(device.systemName) \(device.systemVersion))", "inline": true],
             ["name": "⚡ JIT Durumu", "value": StikJITHelper.ready ? "🟢 Aktif" : "🔴 Pasif", "inline": true],
@@ -74,8 +74,8 @@ final class RevivalLogTelemetry {
             "content": "🚨 **Revival Mobile (Goley TR) Teşhis Raporu**",
             "embeds": [
                 [
-                    "title": "Revival Mobile Sistem ve Hata Teşhisi",
-                    "description": "Tarih: `\(dateStr)`\nUygulama klasörlerindeki tüm loglar ekte sunulmuştur.",
+                    "title": "Revival Mobile Otomatik Teşhis ve Hata Raporu",
+                    "description": "Tarih: `\(dateStr)`\nUygulama klasörlerindeki tüm loglar mesaja eklenmiştir.",
                     "color": 3066993, // Zümrüt Yeşili
                     "fields": embedFields
                 ]
@@ -98,7 +98,7 @@ final class RevivalLogTelemetry {
         // 2. Dosya ekleri (files[0], files[1], ...)
         var fileIndex = 0
         for (filename, textContent) in files.sorted(by: { $0.key < $1.key }) {
-            guard fileIndex < 10 else { break } // Discord mesaj başı max 10 dosya kabul eder
+            guard fileIndex < 10 else { break } // Discord mesaj başı max 10 ek kabul eder
             let fileData = textContent.data(using: .utf8) ?? Data()
 
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -117,63 +117,13 @@ final class RevivalLogTelemetry {
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
-                return (true, "Tüm loglar Discord kanalına başarıyla gönderildi! (\(fileIndex) dosya)")
+                return (true, "Loglar Discord kanalına başarıyla gönderildi! (\(fileIndex) dosya)")
             } else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                return (false, "Discord yanıt vermedi (HTTP \(code)). Webhook URL'sini kontrol edin.")
+                return (false, "Discord yanıt kodu: HTTP \(code)")
             }
         } catch {
-            return (false, "Discord'a bağlanılamadı: \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - Filebin Üzerinden Log Gönderme
-    /// Logları toplayıp anonim buluta (filebin.net) yükler
-    func uploadLogs(triggerReason: String = "manual", completion: ((Bool, String) -> Void)? = nil) {
-        Task {
-            let files = self.gatherAllLogFiles(triggerReason: triggerReason)
-            let (success, message) = await self.uploadToFilebin(files: files)
-            DispatchQueue.main.async {
-                completion?(success, message)
-            }
-        }
-    }
-
-    private func uploadToFilebin(files: [String: String]) async -> (Bool, String) {
-        guard !files.isEmpty else {
-            return (false, "Yüklenecek log dosyası bulunamadı.")
-        }
-
-        var uploadedCount = 0
-        var lastError = ""
-
-        for (filename, content) in files {
-            guard let fileURL = URL(string: "\(baseURL)/\(binId)/\(filename)") else { continue }
-
-            var request = URLRequest(url: fileURL)
-            request.httpMethod = "POST"
-            request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
-            request.setValue("RevivalMobile-iOS", forHTTPHeaderField: "User-Agent")
-            request.httpBody = content.data(using: .utf8)
-            request.timeoutInterval = 15.0
-
-            do {
-                let (_, response) = try await URLSession.shared.data(for: request)
-                if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
-                    uploadedCount += 1
-                } else {
-                    let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    lastError = "HTTP \(code)"
-                }
-            } catch {
-                lastError = error.localizedDescription
-            }
-        }
-
-        if uploadedCount > 0 {
-            return (true, "Loglar buluta yüklendi (\(uploadedCount) dosya): filebin.net/\(binId)")
-        } else {
-            return (false, "Log yükleme başarısız oldu: \(lastError)")
+            return (false, "Discord bağlantı hatası: \(error.localizedDescription)")
         }
     }
 
@@ -231,7 +181,7 @@ final class RevivalLogTelemetry {
 
         files["00_system_info.txt"] = systemInfo
 
-        // 2. Documents altındaki loglar (madeira-log.txt vb.)
+        // 2. Documents ve Wine altındaki tüm loglar
         let searchDirectories = [
             documentsDirectory,
             winePrefixURL.appendingPathComponent("drive_c/users/mobile/AppData/Roaming/Revival/logs"),
@@ -245,7 +195,6 @@ final class RevivalLogTelemetry {
                 for case let fileURL as URL in enumerator {
                     let ext = fileURL.pathExtension.lowercased()
                     let name = fileURL.lastPathComponent
-                    // Yalnızca log veya txt dosyalarını al
                     if ext == "log" || ext == "txt" || name.contains("log") {
                         if files[name] == nil {
                             if let content = readLastLines(of: fileURL, maxLines: 2500) {

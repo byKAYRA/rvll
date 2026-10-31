@@ -206,20 +206,12 @@ struct RevivalRootView: View {
             }
             .confirmationDialog("Teşhis ve Log Seçenekleri", isPresented: $showLogMenu, titleVisibility: .visible) {
                 Button("🎮 Discord Kanalına Gönder (Tüm Loglar)") {
-                    if RevivalLogTelemetry.shared.discordWebhookURL.isEmpty {
-                        inputWebhookURL = ""
-                        showDiscordWebhookAlert = true
-                    } else {
-                        uploadLogsToDiscord()
-                    }
-                }
-                Button("☁️ Filebin Bulutuna Gönder") {
-                    uploadLogsToFilebin()
+                    uploadLogsToDiscord()
                 }
                 Button("📤 Log Dosyasını Paylaş / Kaydet (AirDrop / Dosyalar)") {
                     exportAndShareLogs()
                 }
-                Button("⚙️ Discord Webhook URL Ayarla") {
+                Button("⚙️ Discord Webhook URL Değiştir") {
                     inputWebhookURL = RevivalLogTelemetry.shared.discordWebhookURL
                     showDiscordWebhookAlert = true
                 }
@@ -246,15 +238,6 @@ struct RevivalRootView: View {
         isUploadingLogs = true
         showToast("Tüm loglar taranıyor ve Discord kanalına yükleniyor...")
         RevivalLogTelemetry.shared.uploadToDiscord(triggerReason: "user-button") { success, msg in
-            isUploadingLogs = false
-            showToast(msg)
-        }
-    }
-
-    private func uploadLogsToFilebin() {
-        isUploadingLogs = true
-        showToast("Loglar toplanıyor ve buluta iletiliyor...")
-        RevivalLogTelemetry.shared.uploadLogs(triggerReason: "user-button") { success, msg in
             isUploadingLogs = false
             showToast(msg)
         }
