@@ -60,26 +60,17 @@ final class RevivalLogTelemetry {
         let device = UIDevice.current
         let dateStr = ISO8601DateFormatter().string(from: Date())
 
-        // Discord Embed Alanları
-        let embedFields: [[String: Any]] = [
-            ["name": "📱 Cihaz", "value": "\(device.model) (\(device.systemName) \(device.systemVersion))", "inline": true],
-            ["name": "⚡ JIT Durumu", "value": StikJITHelper.ready ? "🟢 Aktif" : "🔴 Pasif", "inline": true],
-            ["name": "⚙️ Wineserver", "value": wineserver_is_running() != 0 ? "🟢 Çalışıyor" : "🔴 Durdu", "inline": true],
-            ["name": "🍷 Wine Süreci", "value": wine_process_is_running() != 0 ? "🟢 Çalışıyor" : "🔴 Durdu", "inline": true],
-            ["name": "📦 Eklenen Dosyalar", "value": "\(files.count) dosya eklendi", "inline": true],
-            ["name": "🎯 Tetikleyici", "value": "`\(triggerReason)`", "inline": true]
-        ]
+        let summaryText = """
+        ```
+        [revival-log] \(dateStr)
+        device: \(device.model) | \(device.systemName) \(device.systemVersion)
+        jit: \(StikJITHelper.ready ? "ready" : "none") | wineserver: \(wineserver_is_running() != 0 ? "running" : "stopped") | wine: \(wine_process_is_running() != 0 ? "running" : "stopped")
+        trigger: \(triggerReason) | files: \(files.count)
+        ```
+        """
 
         let payloadJsonDict: [String: Any] = [
-            "content": "🚨 **Revival Mobile (Goley TR) Teşhis Raporu**",
-            "embeds": [
-                [
-                    "title": "Revival Mobile Otomatik Teşhis ve Hata Raporu",
-                    "description": "Tarih: `\(dateStr)`\nUygulama klasörlerindeki tüm loglar mesaja eklenmiştir.",
-                    "color": 3066993, // Zümrüt Yeşili
-                    "fields": embedFields
-                ]
-            ]
+            "content": summaryText
         ]
 
         guard let payloadJsonData = try? JSONSerialization.data(withJSONObject: payloadJsonDict, options: []) else {
