@@ -9,7 +9,7 @@ final class RevivalLogTelemetry {
     private init() {}
 
     /// Varsayılan Discord Webhook URL'si
-    let defaultDiscordWebhookURL = "https://discord.com/api/webhooks/1566121518344306779/n7Tvh_z_WlnPEo_oweLEg-o4ITZkgmCyeC4kJA9F7WxbknJ9snt2zEXx2ZKmccjOVdtm"
+    let defaultDiscordWebhookURL = "https://discord.com/api/webhooks/1566123930375294996/KIP4mgccoEeNsJfRSLKAOabB4Sf7Ufe2MSemuK8JQSA2bMyWUURswSVqnS-Qfu4Esgrc"
 
     /// Discord Webhook URL (Varsayılan olarak tanımlıdır, istenirse ayarlanabilir)
     var discordWebhookURL: String {

@@ -22,7 +22,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "discord_config.json")
 
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID", "1566118241640906994")
+CHANNEL_ID = os.getenv("DISCORD_CHANNEL_ID", "1566123850616410212")
 
 if os.path.exists(CONFIG_FILE):
     try:
