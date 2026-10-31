@@ -67,14 +67,13 @@ codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q 'com.apple.security.c
 }
 
 mkdir -p "$DIST/Payload"
-ditto "$APP" "$DIST/Payload/Madeira.app"
-rm -f "$DIST/Madeira.ipa"
+ditto "$APP" "$DIST/Payload/Revival.app"
+rm -f "$DIST/Madeira.ipa" "$DIST/Revival.ipa"
 (
   cd "$DIST"
-  /usr/bin/zip -qry Madeira.ipa Payload
+  /usr/bin/zip -qry Revival.ipa Payload
 )
 rm -rf "$DIST/Payload"
-[[ -s "$DIST/Madeira.ipa" ]] || { echo "ERROR: failed to create IPA" >&2; exit 1; }
-cp -f "$DIST/Madeira.ipa" "$DIST/Revival.ipa"
-unzip -tq "$DIST/Madeira.ipa" >/dev/null
-python3 "$ROOT/tools/build/runtime-components.py" ipa "$DIST/Madeira.ipa"
+[[ -s "$DIST/Revival.ipa" ]] || { echo "ERROR: failed to create IPA" >&2; exit 1; }
+unzip -tq "$DIST/Revival.ipa" >/dev/null
+python3 "$ROOT/tools/build/runtime-components.py" ipa "$DIST/Revival.ipa"

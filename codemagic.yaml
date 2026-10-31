@@ -18,4 +18,4 @@ workflows:
           source "$HOME/.cargo/env" || true
           tools/build-ipa.sh
     artifacts:
-      - dist/*.ipa
+      - dist/Revival.ipa

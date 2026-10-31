@@ -71,4 +71,4 @@ if [[ "${GITHUB_ACTIONS:-}" != true ]]; then
 fi
 "$ROOT/tools/build/package-ipa.sh"
 
-printf '\n\033[1;32mDone: %s/dist/Madeira.ipa (and Revival.ipa)\033[0m\n' "$ROOT"
+printf '\n\033[1;32mDone: %s/dist/Revival.ipa\033[0m\n' "$ROOT"

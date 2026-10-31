@@ -18,6 +18,8 @@ struct RevivalRootView: View {
     @State private var showLogMenu = false
     @State private var shareURL: URL? = nil
     @State private var showShareSheet = false
+    @State private var showDiscordWebhookAlert = false
+    @State private var inputWebhookURL = RevivalLogTelemetry.shared.discordWebhookURL
 
     var body: some View {
         GeometryReader { geo in
@@ -203,14 +205,49 @@ struct RevivalRootView: View {
                 }
             }
             .confirmationDialog("Teşhis ve Log Seçenekleri", isPresented: $showLogMenu, titleVisibility: .visible) {
-                Button("Buluta Yükle (Filebin.net)") {
+                Button("🎮 Discord Kanalına Gönder (Tüm Loglar)") {
+                    if RevivalLogTelemetry.shared.discordWebhookURL.isEmpty {
+                        inputWebhookURL = ""
+                        showDiscordWebhookAlert = true
+                    } else {
+                        uploadLogsToDiscord()
+                    }
+                }
+                Button("☁️ Filebin Bulutuna Gönder") {
                     uploadLogsToFilebin()
                 }
-                Button("Log Dosyasını Paylaş / Kaydet (AirDrop / Dosyalar)") {
+                Button("📤 Log Dosyasını Paylaş / Kaydet (AirDrop / Dosyalar)") {
                     exportAndShareLogs()
+                }
+                Button("⚙️ Discord Webhook URL Ayarla") {
+                    inputWebhookURL = RevivalLogTelemetry.shared.discordWebhookURL
+                    showDiscordWebhookAlert = true
                 }
                 Button("İptal", role: .cancel) {}
             }
+            .alert("Discord Webhook Ayarı", isPresented: $showDiscordWebhookAlert) {
+                TextField("https://discord.com/api/webhooks/...", text: $inputWebhookURL)
+                Button("Kaydet ve Gönder") {
+                    RevivalLogTelemetry.shared.discordWebhookURL = inputWebhookURL
+                    uploadLogsToDiscord()
+                }
+                Button("Yalnızca Kaydet") {
+                    RevivalLogTelemetry.shared.discordWebhookURL = inputWebhookURL
+                    showToast("Discord Webhook URL kaydedildi.")
+                }
+                Button("İptal", role: .cancel) {}
+            } message: {
+                Text("Discord kanalınızın Webhook URL'sini yapıştırın. Uygulamadaki tüm log dosyaları kanala otomatik yüklenecektir.")
+            }
+        }
+    }
+
+    private func uploadLogsToDiscord() {
+        isUploadingLogs = true
+        showToast("Tüm loglar taranıyor ve Discord kanalına yükleniyor...")
+        RevivalLogTelemetry.shared.uploadToDiscord(triggerReason: "user-button") { success, msg in
+            isUploadingLogs = false
+            showToast(msg)
         }
     }
 
