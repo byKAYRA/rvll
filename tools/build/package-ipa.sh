@@ -67,7 +67,7 @@ codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q 'com.apple.security.c
 }
 
 mkdir -p "$DIST/Payload"
-ditto "$APP" "$DIST/Payload/Revival.app"
+ditto "$APP" "$DIST/Payload/Madeira.app"
 rm -f "$DIST/Madeira.ipa" "$DIST/Revival.ipa"
 (
   cd "$DIST"
