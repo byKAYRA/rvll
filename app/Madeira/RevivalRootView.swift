@@ -571,7 +571,7 @@ struct RevivalRootView: View {
         // JIT GÜVENLİK KONTROLÜ: JIT olmadan Wine ASLA başlatılmaz!
         guard StikJITHelper.ready else {
             showToast("⚠️ JIT henüz aktif değil! Lütfen önce JIT'i etkinleştirin.")
-            UIImpactFeedbackGenerator(style: .error).impactOccurred()
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
             return
         }
 
