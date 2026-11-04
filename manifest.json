@@ -1,6 +1,6 @@
 {
   "version": "1.0.1",
-  "updated_at": "2026-11-04T10:10:54.567913+00:00",
+  "updated_at": "2026-11-04T18:00:42.418391+00:00",
   "files": [
     {
       "target_path": "madeira.cfg",
@@ -121,6 +121,36 @@
       "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/Game/BinaryTr/winspool.drv",
       "sha256": "df59271467eb40ff9b66f488942594d7cf2fa776107221c7a2424cf5d70c6251",
       "size": 84480
+    },
+    {
+      "target_path": "Documents/StikJIT/DDI/BuildManifest.plist",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/ddi/BuildManifest.plist",
+      "sha256": "27385d7582b03b36bb3104e22b520aee0c47d72fecb4e8ecfe12ef5d966c7012",
+      "size": 804946
+    },
+    {
+      "target_path": "Documents/StikJIT/DDI/Image.dmg",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/ddi/Image.dmg",
+      "sha256": "873097f695a8b9734e2abc54f795a8874d40ff6fd11208ecb01ef29534c7c176",
+      "size": 15895040
+    },
+    {
+      "target_path": "Documents/StikJIT/DDI/Image.dmg.cryptex_info",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/ddi/Image.dmg.cryptex_info",
+      "sha256": "edf49aef55aacc063d4d7be05b713bb545ce2993b3f62bcc15eccd75e610ee6c",
+      "size": 430
+    },
+    {
+      "target_path": "Documents/StikJIT/DDI/Image.dmg.root_hash",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/ddi/Image.dmg.root_hash",
+      "sha256": "3543fad2805b88119695c417e12679380b3b5a2742994bbcc839c8e2de5d7302",
+      "size": 229
+    },
+    {
+      "target_path": "Documents/StikJIT/DDI/Image.dmg.trustcache",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/ddi/Image.dmg.trustcache",
+      "sha256": "f7f21986074eee03a215aca16ecfc78d6bf183600d8a0d2fb691f9896782e6f0",
+      "size": 1895
     }
   ]
 }

@@ -45,6 +45,16 @@ xcodebuild \
 
 python3 "$ROOT/tools/build/runtime-components.py" bundle "$APP"
 
+if [[ -d "$ROOT/ddi" ]]; then
+  echo "==> Bundling Developer Disk Image (DDI) into app and helper extension"
+  mkdir -p "$APP/DDI"
+  cp -r "$ROOT/ddi/"* "$APP/DDI/"
+  if [[ -d "$APP/PlugIns/MadeiraJITHelper.appex" ]]; then
+    mkdir -p "$APP/PlugIns/MadeiraJITHelper.appex/DDI"
+    cp -r "$ROOT/ddi/"* "$APP/PlugIns/MadeiraJITHelper.appex/DDI/"
+  fi
+fi
+
 # Preserve Madeira's requested JIT/debug entitlements in the IPA. SideStore will
 # replace this ad-hoc signature with the user's development signature while
 # retaining the supported entitlements.

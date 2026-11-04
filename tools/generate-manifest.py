@@ -70,6 +70,24 @@ def main():
                     })
                     seen_targets.add(target_path)
 
+    # 4. ddi/ directory -> Documents/StikJIT/DDI/...
+    ddi_dir = os.path.join(REPO_ROOT, "ddi")
+    if os.path.isdir(ddi_dir):
+        for root, dirs, files in os.walk(ddi_dir):
+            for file in sorted(files):
+                abs_path = os.path.join(root, file)
+                rel_path = os.path.relpath(abs_path, ddi_dir).replace("\\", "/")
+                target_path = f"Documents/StikJIT/DDI/{rel_path}"
+                if target_path not in seen_targets:
+                    raw_url = f"{BASE_RAW_URL}/ddi/{rel_path}"
+                    manifest_items.append({
+                        "target_path": target_path,
+                        "url": raw_url,
+                        "sha256": sha256_file(abs_path),
+                        "size": os.path.getsize(abs_path)
+                    })
+                    seen_targets.add(target_path)
+
     manifest = {
         "version": "1.0.1",
         "updated_at": datetime.now(timezone.utc).isoformat(),

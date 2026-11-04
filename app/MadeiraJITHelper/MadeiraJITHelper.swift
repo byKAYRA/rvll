@@ -70,6 +70,9 @@ private enum MadeiraJITWork {
             try pairingData.write(to: pairingURL, options: .atomic)
             defer { try? manager.removeItem(at: pairingURL) }
 
+            // DDI dosyalarını yerel bundle veya güvenilir kaynaktan hazırla
+            ensureDDIFiles(paths: paths, root: root)
+
             switch request.operation {
             case .prepare:
                 let readiness = StikJIT.prepareDevice(
@@ -117,6 +120,99 @@ private enum MadeiraJITWork {
                          txmPresent: StikJIT.isTXMPresent)
         }
     }
+
+    private static func ensureDDIFiles(paths: DDIPaths, root: URL) {
+        let manager = FileManager.default
+        let ddiDir = root.appendingPathComponent("DDI", isDirectory: true)
+        try? manager.createDirectory(at: ddiDir, withIntermediateDirectories: true)
+
+        let requiredFiles: [(name: String, path: String)] = [
+            ("BuildManifest.plist", paths.manifestPath),
+            ("Image.dmg.trustcache", paths.trustcachePath),
+            ("Image.dmg.cryptex_info", paths.cryptexInfoPath),
+            ("Image.dmg.root_hash", paths.rootHashPath),
+            ("Image.dmg", paths.imagePath)
+        ]
+
+        var missingFiles: [(name: String, path: String)] = []
+        for file in requiredFiles {
+            var isDir: ObjCBool = false
+            if !manager.fileExists(atPath: file.path, isDirectory: &isDir) || isDir.boolValue {
+                missingFiles.append(file)
+            } else if let attrs = try? manager.attributesOfItem(atPath: file.path), (attrs[.size] as? Int64 ?? 0) == 0 {
+                missingFiles.append(file)
+            }
+        }
+
+        if missingFiles.isEmpty {
+            NSLog("[MadeiraJIT] All %d DDI files verified in %@", requiredFiles.count, ddiDir.path)
+            return
+        }
+
+        NSLog("[MadeiraJIT] Missing %d DDI files, resolving sources...", missingFiles.count)
+
+        var candidateURLs: [URL] = []
+        if let bundleDDI = Bundle.main.url(forResource: "DDI", withExtension: nil) {
+            candidateURLs.append(bundleDDI)
+        }
+        candidateURLs.append(Bundle.main.bundleURL.appendingPathComponent("DDI", isDirectory: true))
+        let hostAppURL = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
+        candidateURLs.append(hostAppURL.appendingPathComponent("DDI", isDirectory: true))
+
+        if let docs = manager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            candidateURLs.append(docs.appendingPathComponent("DDI", isDirectory: true))
+            candidateURLs.append(docs.appendingPathComponent("StikJIT/DDI", isDirectory: true))
+        }
+
+        for file in missingFiles {
+            var found = false
+            for candidate in candidateURLs {
+                let sourceFile = candidate.appendingPathComponent(file.name)
+                var isDir: ObjCBool = false
+                if manager.fileExists(atPath: sourceFile.path, isDirectory: &isDir) && !isDir.boolValue {
+                    if let size = (try? manager.attributesOfItem(atPath: sourceFile.path))?[.size] as? Int64, size > 0 {
+                        try? manager.removeItem(atPath: file.path)
+                        do {
+                            try manager.copyItem(at: sourceFile, to: URL(fileURLWithPath: file.path))
+                            NSLog("[MadeiraJIT] Copied %@ from %@", file.name, sourceFile.path)
+                            found = true
+                            break
+                        } catch {
+                            NSLog("[MadeiraJIT] Failed copying %@: %@", file.name, error.localizedDescription)
+                        }
+                    }
+                }
+            }
+
+            if !found {
+                let baseURL = "https://github.com/doronz88/DeveloperDiskImage/raw/refs/heads/main/PersonalizedImages/Xcode_iOS_DDI_Cryptex/"
+                if let downloadURL = URL(string: baseURL + file.name) {
+                    NSLog("[MadeiraJIT] Downloading %@ from GitHub...", file.name)
+                    let sema = DispatchSemaphore(value: 0)
+                    var request = URLRequest(url: downloadURL)
+                    request.timeoutInterval = 120.0
+                    let task = URLSession.shared.downloadTask(with: request) { tempURL, response, error in
+                        defer { sema.signal() }
+                        guard let tempURL = tempURL, error == nil,
+                              let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                            NSLog("[MadeiraJIT] Download error for %@: %@", file.name, error?.localizedDescription ?? "HTTP error")
+                            return
+                        }
+                        try? manager.removeItem(atPath: file.path)
+                        do {
+                            try manager.moveItem(at: tempURL, to: URL(fileURLWithPath: file.path))
+                            NSLog("[MadeiraJIT] Successfully saved %@ to %@", file.name, file.path)
+                        } catch {
+                            NSLog("[MadeiraJIT] Failed to save %@: %@", file.name, error.localizedDescription)
+                        }
+                    }
+                    task.resume()
+                    _ = sema.wait(timeout: .now() + 180.0)
+                }
+            }
+        }
+    }
+
 }
 
 /// NSExtensionPrincipalClass (Info.plist). The request arrives as JSON in the first input
