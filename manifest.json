@@ -1,12 +1,18 @@
 {
   "version": "1.0.1",
-  "updated_at": "2026-10-31T16:01:32.261597+00:00",
+  "updated_at": "2026-11-04T10:10:54.567913+00:00",
   "files": [
     {
       "target_path": "madeira.cfg",
       "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/madeira.cfg",
       "sha256": "80e5d7696aeed19b3f6d7bf21ae15e26609ec782e152928de4404af5ce78e654",
       "size": 460
+    },
+    {
+      "target_path": "Revival/Inter.ttf",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/Inter.ttf",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+      "size": 876576
     },
     {
       "target_path": "Revival/cacert.pem",
@@ -33,6 +39,42 @@
       "size": 36864
     },
     {
+      "target_path": "Revival/msvcp140.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/msvcp140.dll",
+      "sha256": "0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9",
+      "size": 557728
+    },
+    {
+      "target_path": "Revival/msvcp140_1.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/msvcp140_1.dll",
+      "sha256": "bfad5aef4c63a669e3c140655cdfdf395b6c979b400a447bd5dcb65ed8826c3d",
+      "size": 35952
+    },
+    {
+      "target_path": "Revival/msvcp140_2.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/msvcp140_2.dll",
+      "sha256": "3ea06f0ee098b4823cb79599df3780e7f23cce52c19aac31d2a0d47efe33a5e9",
+      "size": 280200
+    },
+    {
+      "target_path": "Revival/msvcp140_atomic_wait.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/msvcp140_atomic_wait.dll",
+      "sha256": "640b2aefced484d0368eea5bdd06addd0658a3a70a49256e560d6923b404a479",
+      "size": 50304
+    },
+    {
+      "target_path": "Revival/msvcp140_codecvt_ids.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/msvcp140_codecvt_ids.dll",
+      "sha256": "f2069a52880ec885ee7f0511186100eb7fada0411a2b4948fafea7735b878a18",
+      "size": 31872
+    },
+    {
+      "target_path": "Revival/msvcp_win.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/msvcp_win.dll",
+      "sha256": "940a41d9d78c2d2d0ece8d8e4735630735f57ffb95466e350dae3535b40a698a",
+      "size": 642016
+    },
+    {
       "target_path": "Revival/ncrypt.dll",
       "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/ncrypt.dll",
       "sha256": "898e9a0efd62e20e419f460ed542ccfdd84627820eb97055c92341fc57dc4a5a",
@@ -43,6 +85,24 @@
       "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/qt.conf",
       "sha256": "289362db0f2d7b1780eb843b30272ddc1d889e4da3292804062f308cb8eabf0f",
       "size": 19
+    },
+    {
+      "target_path": "Revival/revival_launcher.exe",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/revival_launcher.exe",
+      "sha256": "4e43350a5c2d1aba271b9aaba2351b292ba1ae3b078102953bf59c84a7625522",
+      "size": 40000512
+    },
+    {
+      "target_path": "Revival/vcruntime140.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/vcruntime140.dll",
+      "sha256": "d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066",
+      "size": 124544
+    },
+    {
+      "target_path": "Revival/vcruntime140_1.dll",
+      "url": "https://raw.githubusercontent.com/byKAYRA/rvll/main/client/vcruntime140_1.dll",
+      "sha256": "1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f",
+      "size": 49792
     },
     {
       "target_path": "Revival/Game/BinaryTr/dinput8.dll",

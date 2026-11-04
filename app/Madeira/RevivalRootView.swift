@@ -28,14 +28,11 @@ struct RevivalRootView: View {
     private var exeStatusInfo: (exists: Bool, message: String) {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let launcherPath = docs.appendingPathComponent("wine/drive_c/Revival/revival_launcher.exe").path
-        let binaryTrUPath = docs.appendingPathComponent("wine/drive_c/Revival/Game/BinaryTr/BinaryTrU.exe").path
 
         if FileManager.default.fileExists(atPath: launcherPath) {
             return (true, "revival_launcher.exe hazır.")
-        } else if FileManager.default.fileExists(atPath: binaryTrUPath) {
-            return (true, "BinaryTrU.exe hazır.")
         } else {
-            return (false, "revival_launcher.exe henüz kopyalanmamış. Masaüstü açılacaktır. Dosyaları 3uTools veya Dosyalar ile 'wine/drive_c/Revival' içine atabilirsiniz.")
+            return (false, "Başlatıcı henüz indirilmedi. 'Oyunu Başlat' butonuna bastığınızda veya 'Dosyaları Eşitle' ile otomatik indirilecektir.")
         }
     }
 
@@ -74,6 +71,10 @@ struct RevivalRootView: View {
                     left: 16, right: 16, top: 8, bottom: 8
                 )
                 ControlPresetsModel.shared.load(ControlPresetLayout.goleyID, screen: screen, reason: "revival-init")
+            }
+            // Açılışta eksik başlatıcı dosyalarını ve güncellemeleri otomatik indir
+            .task {
+                await syncEngine.synchronize()
             }
             // Canlı JIT Durumu Yoklayıcısı (Her 1.2 saniyede kontrol eder)
             .task {
@@ -597,17 +598,27 @@ struct RevivalRootView: View {
         wineCrashMessage = nil
 
         Task {
-            // 1. GitHub Güncellemelerini Denetle
-            statusMessage = "Güncellemeler denetleniyor..."
+            // 1. GitHub Güncellemelerini Denetle ve Eksik Başlatıcı Dosyalarını İndir
+            statusMessage = "Başlatıcı ve güncellemeler denetleniyor..."
             await syncEngine.synchronize()
+
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let launcherPath = docs.appendingPathComponent("wine/drive_c/Revival/revival_launcher.exe").path
+
+            guard FileManager.default.fileExists(atPath: launcherPath) else {
+                DispatchQueue.main.async {
+                    self.isStartingWine = false
+                    self.wineCrashMessage = "revival_launcher.exe indirilemedi. İnternet bağlantınızı kontrol edip 'Dosyaları Eşitle' butonuna dokunun."
+                    self.showToast("❌ Başlatıcı indirilemedi!")
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                }
+                return
+            }
 
             statusMessage = "JIT hafıza havuzu tahsis ediliyor..."
 
             DispatchQueue.global(qos: .userInteractive).async {
-                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 let prefix = docs.appendingPathComponent("wine").path
-                let launcherPath = docs.appendingPathComponent("wine/drive_c/Revival/revival_launcher.exe").path
-                let binaryTrUPath = docs.appendingPathComponent("wine/drive_c/Revival/Game/BinaryTr/BinaryTrU.exe").path
 
                 // 2. JIT Havuzu Tahsisi (Dual-mapped RX/RW bellek)
                 guard let pool = StikJITHelper.allocatePool(poolSize: 128 * 1024 * 1024) else {
@@ -638,23 +649,14 @@ struct RevivalRootView: View {
                     self.statusMessage = "Oyun motoru başlatılıyor..."
                 }
 
-                // 3. Hedef exe kontrolü
-                var targetExe = ""
-                if FileManager.default.fileExists(atPath: launcherPath) {
-                    targetExe = "C:\\Revival\\revival_launcher.exe"
-                } else if FileManager.default.fileExists(atPath: binaryTrUPath) {
-                    targetExe = "C:\\Revival\\Game\\BinaryTr\\BinaryTrU.exe"
-                }
+                // 3. Hedef exe: Her zaman doğrudan revival_launcher.exe açılır
+                let targetExe = "C:\\Revival\\revival_launcher.exe"
 
                 // 4. Masaüstü Modu (Desktop Mode) Ortam Değişkenleri
                 let deskW = 1408
                 let deskH = 648
                 setenv("MADEIRA_EXE", "explorer.exe", 1)
-                if !targetExe.isEmpty {
-                    setenv("MADEIRA_ARGS", "/desktop=shell,\(deskW)x\(deskH) \(targetExe)", 1)
-                } else {
-                    setenv("MADEIRA_ARGS", "/desktop=shell,\(deskW)x\(deskH)", 1)
-                }
+                setenv("MADEIRA_ARGS", "/desktop=shell,\(deskW)x\(deskH) \(targetExe)", 1)
                 setenv("MADEIRA_DESKTOP", "1", 1)
                 setenv("MADEIRA_SCREEN_W", String(deskW), 1)
                 setenv("MADEIRA_SCREEN_H", String(deskH), 1)
