@@ -4,14 +4,12 @@ import UIKit
 
 // MARK: - Revival Mobile (Goley TR) Ana Görünümü & Başlatıcı
 struct RevivalRootView: View {
+    @ObservedObject private var library = LibraryModel.shared
     @ObservedObject private var touchModel = TouchControlsModel.shared
     @ObservedObject private var syncEngine = RevivalSyncEngine.shared
 
-    @State private var isGameRunning = false
     @State private var isStartingWine = false
     @State private var statusMessage = "Revival hazır."
-    @State private var showControls = true
-    @State private var wineStarted = false
     @State private var isUploadingLogs = false
     @State private var toastMessage: String? = nil
     @State private var showJITSheet = false
@@ -23,6 +21,24 @@ struct RevivalRootView: View {
     @State private var inputWebhookURL = RevivalLogTelemetry.shared.discordWebhookURL
     @State private var wineCrashMessage: String? = nil
 
+    private var isGameRunning: Bool {
+        library.current != nil
+    }
+
+    private var exeStatusInfo: (exists: Bool, message: String) {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let launcherPath = docs.appendingPathComponent("wine/drive_c/Revival/revival_launcher.exe").path
+        let binaryTrUPath = docs.appendingPathComponent("wine/drive_c/Revival/Game/BinaryTr/BinaryTrU.exe").path
+
+        if FileManager.default.fileExists(atPath: launcherPath) {
+            return (true, "revival_launcher.exe hazır.")
+        } else if FileManager.default.fileExists(atPath: binaryTrUPath) {
+            return (true, "BinaryTrU.exe hazır.")
+        } else {
+            return (false, "revival_launcher.exe henüz kopyalanmamış. Masaüstü açılacaktır. Dosyaları 3uTools veya Dosyalar ile 'wine/drive_c/Revival' içine atabilirsiniz.")
+        }
+    }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
@@ -33,24 +49,22 @@ struct RevivalRootView: View {
                 MadeiraMetalView()
                     .ignoresSafeArea()
 
-                // 3. Dokunmatik Futbol Kontrolleri (Goley Kontrolleri)
-                if showControls && isGameRunning {
-                    TouchControlsOverlay()
-                        .ignoresSafeArea()
-                }
-
-                // 4. Revival Başlatıcı & Kontrol Paneli (Oyun başlamadan önce veya çökerse görünür)
+                // 3. Revival Başlatıcı & Kontrol Paneli (Oyun başlamadan önce veya bitince görünür)
                 if !isGameRunning {
                     launcherDashboard(geo: geo)
                         .transition(.opacity)
                 }
 
-                // 5. Minimalist Üst Kontrol Barı (Oyun ekranındayken veya menüdeyken)
-                topControlBar
+                // 4. Minimalist Üst Bar (Başlatıcıdayken ek kontrol ve ayar butonları)
+                if !isGameRunning {
+                    topControlBar
+                }
             }
             .onAppear {
                 // Başlangıçta Metal katmanını gizle ki başlatıcı paneli net görünsün
-                MetalHostView.shared.isHidden = true
+                if !isGameRunning {
+                    MetalHostView.shared.isHidden = true
+                }
                 isJITReady = StikJITHelper.ready
 
                 // Goley Kontrol düzenini hafızaya hazırla
@@ -79,6 +93,19 @@ struct RevivalRootView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 isJITReady = StikJITHelper.ready
+            }
+            // Oyun oturumu kapandığında otomatik olarak yakala ve başlatıcıya dön
+            .onChange(of: library.current) { oldVal, newVal in
+                if oldVal != nil && newVal == nil {
+                    MetalHostView.shared.isHidden = true
+                    isStartingWine = false
+                    if let err = library.error, !err.isEmpty {
+                        wineCrashMessage = err
+                    } else {
+                        wineCrashMessage = "Oyun oturumu sonlandı."
+                    }
+                    RevivalLogTelemetry.shared.uploadToDiscord(triggerReason: "session-finished") { _, _ in }
+                }
             }
             .sheet(isPresented: $showJITSheet, onDismiss: {
                 isJITReady = StikJITHelper.ready
@@ -136,13 +163,13 @@ struct RevivalRootView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 20) {
-                Spacer().frame(height: 30)
+            VStack(spacing: 16) {
+                Spacer().frame(height: 20)
 
                 // 1. Revival & Goley Logo
-                VStack(spacing: 6) {
+                VStack(spacing: 5) {
                     Text("REVIVAL")
-                        .font(.system(size: 40, weight: .black, design: .rounded))
+                        .font(.system(size: 38, weight: .black, design: .rounded))
                         .tracking(4)
                         .foregroundStyle(
                             LinearGradient(
@@ -188,7 +215,7 @@ struct RevivalRootView: View {
                                 .clipShape(Capsule())
                         }
                     }
-                    .padding(14)
+                    .padding(12)
                     .background(Color.red.opacity(0.2))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.4), lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -196,23 +223,42 @@ struct RevivalRootView: View {
                     .padding(.horizontal, 20)
                 }
 
-                // 3. JIT ve Sistem Durum Kartı
-                VStack(spacing: 16) {
+                // 3. Dosya Durumu Bilgisi (revival_launcher.exe eksikse bildir)
+                let status = exeStatusInfo
+                if !status.exists {
+                    HStack(spacing: 10) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.cyan)
+                        Text(status.message)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .multilineTextAlignment(.leading)
+                    }
+                    .padding(10)
+                    .background(Color.cyan.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.cyan.opacity(0.25), lineWidth: 1))
+                    .frame(maxWidth: 520)
+                    .padding(.horizontal, 20)
+                }
+
+                // 4. JIT ve Sistem Durum Kartı
+                VStack(spacing: 14) {
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
                                 .fill(isJITReady ? Color.green.opacity(0.2) : Color.yellow.opacity(0.18))
-                                .frame(width: 50, height: 50)
+                                .frame(width: 48, height: 48)
 
                             Image(systemName: isJITReady ? "bolt.shield.fill" : "bolt.slash.fill")
-                                .font(.system(size: 24, weight: .bold))
+                                .font(.system(size: 22, weight: .bold))
                                 .foregroundStyle(isJITReady ? Color.green : Color.yellow)
                         }
 
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 3) {
                             HStack {
                                 Text(isJITReady ? "JIT Durumu: Aktif" : "JIT Durumu: Bekleniyor")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 15, weight: .bold))
                                     .foregroundStyle(.white)
 
                                 Spacer()
@@ -227,24 +273,24 @@ struct RevivalRootView: View {
                             }
 
                             Text(isJITReady
-                                 ? "Windows ikili kod derleyicisi ve hafıza havuzu hazır. Oyunu başlatabilirsiniz."
-                                 : "iOS kısıtlaması nedeniyle oyunun çalışması için JIT gereklidir. JIT açılmadan oyun başlatılırsa sistem uygulamayı kapatır.")
+                                 ? "Windows ikili kod derleyicisi hazır. Dokunmatik kontroller ve menü aktif."
+                                 : "iOS kısıtlaması nedeniyle oyunun çalışması için JIT gereklidir. JIT açılmadan başlatılamaz.")
                                 .font(.system(size: 12, weight: .regular))
                                 .foregroundStyle(.white.opacity(0.75))
-                                .lineLimit(3)
+                                .lineLimit(2)
                         }
                     }
-                    .padding(16)
+                    .padding(14)
                     .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: 14)
                             .stroke(isJITReady ? Color.green.opacity(0.4) : Color.yellow.opacity(0.3), lineWidth: 1)
                     )
 
-                    // 4. Ana Eylem Butonu (JIT Etkinleştir VEYA Oyunu Başlat)
+                    // 5. Ana Eylem Butonu (JIT Etkinleştir VEYA Oyunu Başlat)
                     if isStartingWine {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 10) {
                             if syncEngine.isSyncing {
                                 ProgressView(value: max(0.05, syncEngine.progressFraction))
                                     .progressViewStyle(LinearProgressViewStyle(tint: .green))
@@ -261,7 +307,7 @@ struct RevivalRootView: View {
                                     .foregroundStyle(.white.opacity(0.9))
                             }
                         }
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 14)
                     } else if isJITReady {
                         // JIT Hazır -> Büyük Başlatma Butonu
                         Button {
@@ -277,7 +323,7 @@ struct RevivalRootView: View {
                             }
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
+                            .padding(.vertical, 15)
                             .background(
                                 LinearGradient(
                                     colors: [Color(red: 0.2, green: 0.95, blue: 0.4), Color.green],
@@ -327,7 +373,7 @@ struct RevivalRootView: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.85))
                                     .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 11)
+                                    .padding(.vertical, 10)
                                     .background(Color.white.opacity(0.08))
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                                 }
@@ -343,7 +389,7 @@ struct RevivalRootView: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.85))
                                     .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 11)
+                                    .padding(.vertical, 10)
                                     .background(Color.white.opacity(0.08))
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                                 }
@@ -356,7 +402,7 @@ struct RevivalRootView: View {
 
                 Spacer()
 
-                // 5. Alt Yardımcı & Teşhis Çubuğu
+                // 6. Alt Yardımcı & Teşhis Çubuğu
                 HStack(spacing: 12) {
                     Button {
                         uploadLogsToDiscord()
@@ -406,43 +452,15 @@ struct RevivalRootView: View {
                         .clipShape(Capsule())
                     }
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 20)
             }
         }
     }
 
-    // MARK: - Minimalist Üst Kontrol Barı
+    // MARK: - Minimalist Üst Bar (Başlatıcı Ekranı)
     private var topControlBar: some View {
         VStack {
             HStack(spacing: 10) {
-                // Dokunmatik Kontrolleri Aç/Kapat (Yalnızca oyun çalışırken anlamlı)
-                if isGameRunning {
-                    Button {
-                        showControls.toggle()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: {
-                        Image(systemName: showControls ? "gamecontroller.fill" : "gamecontroller")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white.opacity(showControls ? 0.95 : 0.4))
-                            .padding(9)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                    }
-
-                    // Sanal Klavye Aç/Kapat
-                    Button {
-                        MetalBackedView.toggleKeyboard()
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: {
-                        Image(systemName: "keyboard")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.9))
-                            .padding(9)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                    }
-                }
-
                 // JIT Rozeti (⚡)
                 Button {
                     showJITSheet = true
@@ -566,7 +584,7 @@ struct RevivalRootView: View {
 
     // MARK: - Güvenli Oyun Oturumu Başlatma
     private func startRevivalSession(geo: GeometryProxy) {
-        guard !isStartingWine && !isGameRunning else { return }
+        guard !isStartingWine && library.current == nil else { return }
 
         // JIT GÜVENLİK KONTROLÜ: JIT olmadan Wine ASLA başlatılmaz!
         guard StikJITHelper.ready else {
@@ -576,7 +594,6 @@ struct RevivalRootView: View {
         }
 
         isStartingWine = true
-        wineStarted = true
         wineCrashMessage = nil
 
         Task {
@@ -589,6 +606,8 @@ struct RevivalRootView: View {
             DispatchQueue.global(qos: .userInteractive).async {
                 let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 let prefix = docs.appendingPathComponent("wine").path
+                let launcherPath = docs.appendingPathComponent("wine/drive_c/Revival/revival_launcher.exe").path
+                let binaryTrUPath = docs.appendingPathComponent("wine/drive_c/Revival/Game/BinaryTr/BinaryTrU.exe").path
 
                 // 2. JIT Havuzu Tahsisi (Dual-mapped RX/RW bellek)
                 guard let pool = StikJITHelper.allocatePool(poolSize: 128 * 1024 * 1024) else {
@@ -596,7 +615,6 @@ struct RevivalRootView: View {
                     print("[Revival] JIT havuzu tahsis edilemedi: \(failureMsg)")
                     DispatchQueue.main.async {
                         self.isStartingWine = false
-                        self.wineStarted = false
                         self.wineCrashMessage = "JIT Havuz Hatası: \(failureMsg)"
                         self.showToast("❌ JIT hafıza havuzu açılamadı! Wine başlatılmadı.")
                         RevivalLogTelemetry.shared.uploadToDiscord(triggerReason: "pool-alloc-failure") { _, _ in }
@@ -620,11 +638,23 @@ struct RevivalRootView: View {
                     self.statusMessage = "Oyun motoru başlatılıyor..."
                 }
 
-                // 3. Masaüstü Modu (Desktop Mode) Ortam Değişkenleri
+                // 3. Hedef exe kontrolü
+                var targetExe = ""
+                if FileManager.default.fileExists(atPath: launcherPath) {
+                    targetExe = "C:\\Revival\\revival_launcher.exe"
+                } else if FileManager.default.fileExists(atPath: binaryTrUPath) {
+                    targetExe = "C:\\Revival\\Game\\BinaryTr\\BinaryTrU.exe"
+                }
+
+                // 4. Masaüstü Modu (Desktop Mode) Ortam Değişkenleri
                 let deskW = 1408
                 let deskH = 648
                 setenv("MADEIRA_EXE", "explorer.exe", 1)
-                setenv("MADEIRA_ARGS", "/desktop=shell,\(deskW)x\(deskH) C:\\Revival\\revival_launcher.exe", 1)
+                if !targetExe.isEmpty {
+                    setenv("MADEIRA_ARGS", "/desktop=shell,\(deskW)x\(deskH) \(targetExe)", 1)
+                } else {
+                    setenv("MADEIRA_ARGS", "/desktop=shell,\(deskW)x\(deskH)", 1)
+                }
                 setenv("MADEIRA_DESKTOP", "1", 1)
                 setenv("MADEIRA_SCREEN_W", String(deskW), 1)
                 setenv("MADEIRA_SCREEN_H", String(deskH), 1)
@@ -637,10 +667,10 @@ struct RevivalRootView: View {
                 setenv("QT_D3D_NO_FLIP", "1", 1)
                 setenv("QT_D3D_FLIP_DISCARD", "0", 1)
 
-                // 4. Wine Prefix'i Hazırla
+                // 5. Wine Prefix'i Hazırla
                 madeira_seed_prefix_if_needed(prefix)
 
-                // 5. Wineserver Başlat ve Hazır Olmasını Bekle
+                // 6. Wineserver Başlat ve Hazır Olmasını Bekle
                 let srvResult = wineserver_start(prefix)
                 print("[Revival] wineserver_start -> \(srvResult)")
 
@@ -650,50 +680,37 @@ struct RevivalRootView: View {
                 }
                 print(String(format: "[Revival] wineserver hazır: %.0f ms", (CFAbsoluteTimeGetCurrent() - waitStart) * 1000))
 
-                // 6. Ekran Çözünürlüğünü Bildir
+                // 7. Ekran Çözünürlüğünü Bildir
                 winios_display_mode_changed(Int32(deskW), Int32(deskH))
 
-                // 7. Wine Sürecini Başlat
+                // 8. Wine Sürecini Başlat
                 let wineResult = wine_process_start(prefix)
                 print("[Revival] wine_process_start -> \(wineResult)")
 
-                // 8. Masaüstünü Ekrana Ver
+                // 9. Oturumu Başlat, Dokunmatik Kontrolleri ve Menüyü Ekrana Bağla
                 DispatchQueue.main.async {
+                    var entry = LibraryEntry.desktopEntry
+                    entry.title = "Goley Mobile"
+                    entry.resolution = "\(deskW)x\(deskH)"
+                    entry.touchControls = true
+                    entry.controlLayout = ControlPresetLayout.goleyID
+
+                    let screen = ControlPresetScreen(
+                        width: geo.size.width,
+                        height: geo.size.height,
+                        left: 16, right: 16, top: 8, bottom: 8
+                    )
+                    let goleyControls = ControlPresetLayout.goley(for: screen)
+                    entry.controls = goleyControls
+
+                    // LibraryModel ve Dokunmatik Kontrolleri Başlat
+                    LibraryModel.shared.begin(entry, remember: false)
+                    TouchControlsModel.shared.controls = goleyControls
+                    TouchControlsModel.shared.visible = true
+                    TouchControlsHost.attach()
+
                     MetalHostView.shared.isHidden = false
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        self.isGameRunning = true
-                        self.isStartingWine = false
-                    }
-                    // Arka planda süreç sağlığını izle (Watchdog)
-                    self.startWineWatchdog()
-                }
-            }
-        }
-    }
-
-    // MARK: - Wine Çalışma Zamanı Bekçisi (Watchdog)
-    /// Wine süreci çöker veya kapanırsa uygulamanın aniden kapanmasını engeller, logları Discord'a aktarır ve başlatıcıya döner.
-    private func startWineWatchdog() {
-        DispatchQueue.global(qos: .background).async {
-            // Wine'ın açılması için 4 saniye bekle
-            Thread.sleep(forTimeInterval: 4.0)
-
-            while self.isGameRunning {
-                Thread.sleep(forTimeInterval: 1.5)
-
-                if wineserver_is_running() == 0 || wine_process_is_running() == 0 {
-                    print("[RevivalWatchdog] Wine süreci durdu veya kapandı!")
-                    DispatchQueue.main.async {
-                        MetalHostView.shared.isHidden = true
-                        withAnimation {
-                            self.isGameRunning = false
-                            self.wineStarted = false
-                            self.isStartingWine = false
-                            self.wineCrashMessage = "Oyun beklenmedik şekilde kapandı. Hata logları Discord kanalına yüklendi."
-                        }
-                        RevivalLogTelemetry.shared.uploadToDiscord(triggerReason: "watchdog-wine-exit") { _, _ in }
-                    }
-                    break
+                    self.isStartingWine = false
                 }
             }
         }
